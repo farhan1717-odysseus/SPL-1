@@ -1,0 +1,20 @@
+add_executable(minidb_parser_tests parser_tests.cpp)
+target_link_libraries(minidb_parser_tests PRIVATE minidb_engine)
+set_target_properties(minidb_parser_tests PROPERTIES CXX_EXTENSIONS OFF)
+
+add_executable(minidb_application_tests application_tests.cpp)
+target_link_libraries(minidb_application_tests PRIVATE minidb_engine)
+set_target_properties(minidb_application_tests PROPERTIES CXX_EXTENSIONS OFF)
+
+if(MSVC)
+    target_compile_options(minidb_parser_tests PRIVATE /W4 /permissive-)
+    target_compile_options(minidb_application_tests PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(minidb_parser_tests PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(minidb_application_tests PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_test(NAME parser_commands COMMAND minidb_parser_tests)
+add_test(NAME application_cli COMMAND minidb_application_tests)
+add_test(NAME cli_help COMMAND $<TARGET_FILE:minidb> --help)
+add_test(NAME cli_version COMMAND $<TARGET_FILE:minidb> --version)

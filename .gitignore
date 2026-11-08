@@ -1,0 +1,32 @@
+# CMake build output
+/build/
+/cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+
+# Compiled objects, libraries, and executables
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+*.pdb
+*.ilk
+
+# Generated runtime database files
+/data/*
+!/data/.gitkeep
+
+# IDE and editor files
+.vs/
+.idea/
+*.suo
+*.user
+*.code-workspace
