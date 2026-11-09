@@ -30,18 +30,20 @@ Foreign keys, `JOIN`, transactions, indexing, and advanced SQL are not mandatory
 | CLI | Starts a line-oriented shell; supports help and exit/quit | Partial shell |
 | SQL | Recognizes a few shell words and reports SQL as unimplemented | Not implemented |
 | Passwords | No password prompt, verifier, or authentication | Not implemented |
-| Databases | Creates one configured data directory; no named database catalog | Not implemented |
-| Tables | No schemas or table operations | Not implemented |
+| Databases | Standalone manager supports create/drop/show/use with versioned per-database metadata; not wired into CLI | Partial |
+| Tables | Standalone `TableManager` creates, drops, lists, and describes tables in the selected database; schemas are persisted separately with supported column types | Partial; not wired to SQL/CLI |
 | Record CRUD | No record model or execution | Not implemented |
-| Persistence | Data directory can be created; no database/record file format | Not implemented |
-| Tests | Parser smoke test plus CLI help/version/data-directory CTest entries | Scaffold only |
-| Dependencies | No third-party runtime dependency is currently declared | Currently dependency-free |
+| Persistence | Database directories and versioned metadata persist; table records have no format yet | Partial |
+| Tests | Parser/CLI and database-manager tests, plus table-manager lifecycle/schema tests | Scaffold and storage coverage |
+| Dependencies | Project constraint allows only the C++17 standard library; CMake has a GCC 8 standard-library filesystem compatibility link | Compliant; no third-party dependency |
 | VS Code/Git | `.vscode/` is ignored; repository has Git metadata and a GitHub remote | VS Code configuration could be preserved better |
 
 The existing source is small and purpose-specific: `core` runs the CLI,
 `parser` recognizes the two shell commands, `execution` formats help/exit
-results, `storage` prepares a directory, and `utils` prints diagnostics. It
-does not yet contain a database engine.
+results, `storage` prepares the data directory and manages named databases,
+table schemas, and metadata, and `utils` prints diagnostics. The database and
+table managers are not yet connected to SQL or the CLI; records and password
+authentication are still unimplemented.
 
 ## Comparison and required architectural adjustments
 
@@ -58,9 +60,13 @@ does not yet contain a database engine.
 
 - Replace the former single-database assumption with a root catalog containing
   multiple named databases and a selected-database context.
-- Add a password-verification boundary. Store a salted KDF verifier in database
-  metadata, not a plaintext password. Keep password verification separate from
-  SQL parsing and table serialization.
+- Preserve and build on the new standalone `DatabaseManager`; integrate it only
+  when the SQL/application pipeline is ready.
+- Add a password-verification boundary only after agreeing how the official
+  password requirement can be represented under the standard-library-only
+  constraint. The current metadata stores only a signature, version, and
+  database name. Keep authentication separate from SQL parsing and table
+  serialization.
 - Model multiple table schemas and records within each database.
 - Extend the SQL parser and executor for database/table management and record
   CRUD. Preserve quoted literal contents; the current whole-command uppercase
@@ -81,16 +87,16 @@ does not yet contain a database engine.
 - Do not add catalog/table/security files before their behavior is ready.
 - Do not introduce foreign keys, joins, transactions, indexes, or advanced SQL
   as acceptance requirements.
-- The current storage directory helper manually walks path components because
-  the available MinGW 8.1 standard library failed to compile its
-  `std::filesystem` header. This is a portability workaround, not a desirable
-  storage architecture; validate the intended C++17 toolchain before deciding
-  whether to replace it with `std::filesystem`.
-- The existing no-third-party-dependency position conflicts with secure
-  password KDF support in the C++17 standard library, which has no password KDF.
-  Do not solve this by inventing a KDF or using a fast hash. Select an approved
-  platform crypto provider or vetted dependency before implementing password
-  protection.
+- The available MinGW 8.1 installation has a broken `std::filesystem` header.
+  The storage helper now uses the standard C++17 filesystem API as required;
+  build validation needs a working C++17 toolchain rather than platform-specific
+  substitutes.
+- C++17 has no password KDF, cryptographically secure random-number generator,
+  or constant-time comparison API. With the no-external-library requirement,
+  do not implement a custom cryptographic algorithm, use `std::hash`, or claim
+  secure password hashing. A basic password gate is not equivalent to
+  cryptographically secure password protection. Resolve the acceptable
+  security level before implementing the password requirement.
 
 ## Core features and optional extensions
 
@@ -116,8 +122,9 @@ Optional work must not block or be silently folded into core acceptance.
 
 ## Recommended implementation sequence
 
-1. Approve the password KDF/provider, password-entry UX, database command
-   behavior, and minimum SQL grammar.
+1. Agree on the honest security level achievable for password protection while
+   using only the C++17 standard library; also confirm password-entry UX,
+   database command behavior, and minimum SQL grammar.
 2. Preserve the C++17 build and define only shared types needed by the first
    database/storage work.
 3. Implement and test a persistent multi-database catalog and protected
@@ -169,9 +176,11 @@ Build output and temporary test data may also exist locally under the ignored
 
 ## Decisions needing approval before feature implementation
 
-1. **Password KDF/provider:** choose a vetted KDF and how it is supplied
-   (platform crypto API or an approved dependency). The C++17 standard library
-   alone is insufficient for safe password verification.
+1. **Password security under dependency restriction:** the C++17 standard
+   library does not provide a safe password KDF or cryptographic random source.
+   The project must not invent cryptography or add a third-party dependency.
+   Decide whether a clearly limited classroom password gate satisfies the
+   proposal, or whether the no-external-library constraint can be changed.
 2. **Password-entry UX:** confirm concealed interactive prompts for database
    creation/selection rather than SQL literals or command-line arguments, which
    can expose passwords through history or process listings.
@@ -179,8 +188,10 @@ Build output and temporary test data may also exist locally under the ignored
    confirmation because it removes the database's stored tables.
 4. **SQL subset and types:** confirm the proposed commands and initial
    `INTEGER`, `REAL`, `TEXT`, and `BOOLEAN` types in `ARCHITECTURE.md`.
-5. **Toolchain:** confirm the compiler/CMake versions to support. The previously
-   available MinGW GCC 8.1 could compile the scaffold after avoiding its broken
-   `std::filesystem` header, but CMake was unavailable in that environment.
+5. **Toolchain:** confirm the compiler/CMake versions to support. The available
+   MinGW GCC 8.1 installation has a broken `std::filesystem` implementation,
+   and CMake is unavailable in this environment. The project requires working
+   standard-library filesystem support; it does not substitute platform APIs or
+   download a replacement library.
 
 No source files or existing runtime data were removed by this audit.

@@ -7,9 +7,12 @@ proposal. It is a design, not a claim that the features have already been
 implemented.
 
 The current program is a C++17 command-line shell with `HELP`, `EXIT`, and
-`QUIT`, minimal command recognition, and data-directory creation. It does not
-yet create or select databases, request passwords, manage tables, execute SQL,
-or persist records.
+`QUIT`, plus standalone database and table managers. `DatabaseManager` creates,
+lists, selects, and drops named databases with versioned metadata.
+`TableManager` creates, lists, describes, and drops tables in the selected
+database and persists each table's versioned column schema. These managers are
+not yet connected to the CLI. Password authentication, SQL execution, and
+record persistence are not implemented.
 
 ## Official core requirements
 
@@ -23,17 +26,17 @@ The implementation must provide:
 6. Local persistence across application restarts.
 
 The selected implementation language is C++17, with VS Code as the development
-environment and Git/GitHub for version control. These choices do not require a
-particular SQL dialect, file encoding, or cryptography provider; those need to
-be agreed before implementation.
+environment and Git/GitHub for version control. The project constraint is
+strict: use only the C++ standard library at runtime, with CMake as the build
+system. No third-party libraries, package managers, or downloaded frameworks
+are permitted.
 
 ## Design principles
 
 - Keep the implementation understandable to a university student.
 - Keep each module responsible for one concern and testable through its public
   interface.
-- Use the C++ standard library where appropriate; do not add dependencies
-  without a specific requirement.
+- Use only the C++ standard library; do not add third-party dependencies.
 - Treat user input, malformed database files, and filesystem failures as
   explicit errors.
 - Do not store database passwords in plaintext or describe a weak general
@@ -62,8 +65,10 @@ SPL-1/
 │   ├── core/                      # CLI/application lifecycle
 │   ├── execution/                 # SQL statement semantics
 │   ├── parser/                    # Tokens, grammar, statement types
-│   ├── security/                  # Credential verification interface
-│   ├── storage/                   # Database catalog and table files
+│   ├── security/                  # Future password gate; limitations documented
+│   ├── storage/
+│   │   ├── database_manager.hpp   # Named databases and metadata
+│   │   └── table_manager.hpp      # Selected-database table schemas
 │   └── utils/                     # Shared diagnostics and small helpers
 ├── src/
 │   ├── core/
@@ -71,11 +76,15 @@ SPL-1/
 │   ├── parser/
 │   ├── security/
 │   ├── storage/
+│   │   ├── database_manager.cpp
+│   │   └── table_manager.cpp
 │   ├── utils/
 │   └── main.cpp
 └── tests/
     ├── CMakeLists.txt
     ├── parser_tests.cpp
+    ├── database_manager_tests.cpp
+    ├── table_manager_tests.cpp
     ├── security_tests.cpp
     ├── storage_tests.cpp
     └── execution_tests.cpp
@@ -115,11 +124,27 @@ change case-sensitive text literals.
 
 ### Storage (`storage/`)
 
-- Enumerate and manage database metadata and table files under the configured
-  local data root.
-- Serialize and validate schemas and records using a documented file format.
-- Store each database's password verifier as metadata, separate from table
-  records.
+- `DatabaseManager` owns database directory discovery, creation, selection,
+  deletion, and database metadata under the configured local data root.
+- Use `std::filesystem` for directory and path operations. Database identifiers
+  are restricted to ASCII letters/underscores followed by ASCII letters,
+  digits, or underscores, so names cannot escape the configured data root.
+- Table and column identifiers use the same ASCII naming rule and
+  case-insensitive uniqueness behavior.
+- Each database directory contains a `database.meta` file with a format
+  signature, version, and canonical database name. Unsupported or corrupt
+  metadata is reported, not silently treated as a valid database.
+- `TableManager` stores each table under
+  `<selected-database>/tables/<table-name>/schema.meta`. Each schema file has a
+  format signature, version, table name, column count, and ordered column
+  name/type pairs. Supported types are `INT`, `FLOAT`, `DOUBLE`, `VARCHAR`,
+  `TEXT`, and `BOOLEAN`; identifiers and duplicate columns are validated.
+- Record storage and SQL execution are future work. Keep future table records
+  within their table directories and validate schemas and records using
+  documented file formats.
+- No password or password verifier is currently stored. Do not extend metadata
+  for password protection until the security limitations of a standard-library-
+  only implementation are explicitly accepted.
 - Never store a recoverable plaintext password.
 - Report I/O, corrupt-file, and unsupported-format errors explicitly.
 - Use safe file-replacement practices for individual writes. This is an
@@ -128,17 +153,21 @@ change case-sensitive text literals.
 
 ### Security (`security/`)
 
-- Provide the password creation and verification boundary to the application.
-- Use a salted, purpose-built password key-derivation function with recorded
-  parameters and constant-time verifier comparison.
-- Do not implement a password KDF from scratch or silently fall back to a
-  fast/general-purpose hash.
-- Keep authentication state scoped to the current process/session.
+- This module is not implemented. C++17 does not provide a password KDF,
+  cryptographically secure random-number generator, or constant-time comparison
+  facility.
+- Do not invent a cryptographic algorithm or present `std::hash`, an ordinary
+  checksum, or reversible obfuscation as secure password protection.
+- Keep any future authentication state scoped to the current process/session.
 
-The exact KDF/provider and its dependency implications require approval before
-implementation. The C++17 standard library does not provide password hashing.
-Database password protection is an access check; it does not, by itself,
-encrypt data at rest.
+Under the no-external-library constraint, the project cannot honestly provide
+cryptographically secure password verification using only portable C++17. A
+simple application password gate may be possible, but any standard-library-only
+storage/comparison approach has security limitations and must not be described
+as secure password hashing. Database password protection also does not, by
+itself, encrypt data at rest. The acceptable interpretation of the official
+password requirement therefore needs approval before that feature is
+implemented.
 
 ### Utilities (`utils/`)
 
@@ -147,7 +176,14 @@ encrypt data at rest.
 
 ### Build, tests, and runtime data
 
-- CMake configures a C++17 executable and test targets.
+- CMake configures C++17 executable and test targets without downloading or
+  finding third-party dependencies.
+- On GCC versions below 9, CMake links `stdc++fs`, the compiler's own
+  standard-library compatibility unit needed by `std::filesystem`; it is not a
+  third-party library. Other toolchains use their C++17 standard-library
+  filesystem implementation. At configure time, CMake compile-links a small
+  filesystem probe and stops with an explicit toolchain error if the selected
+  standard library is broken or incomplete.
 - VS Code workspace configuration may be committed when it helps reproduce the
   build; `.vscode/` should not be ignored wholesale.
 - Tests use temporary directories and do not depend on committed user data.
@@ -171,35 +207,36 @@ flowchart TD
     Auth --> Store
     Exec --> Result[Structured result or diagnostic]
     Result --> CLI
-    Auth --> KDF[Approved password KDF provider]
+    Auth --> Constraint[No standard C++17 password KDF]
     Auth --> Result
 ```
 
 The diagram shows logical dependencies, not a requirement to create a class for
-every box. The security provider must be selected before the `KDF` dependency
-can be finalized.
+every box. Portable C++17 does not supply a password KDF. Do not add a
+third-party provider or dependency; the security limitation must be accepted
+and documented before password behavior is implemented.
 
 ## Database and table organization
 
-Use one configured root directory for multiple named databases. A conceptual
-layout is:
+Use one configured root directory for multiple named databases. The current
+manager stores each database in a directory named by its validated identifier.
+Its metadata file contains a signature, format version, and database name. A
+future password implementation can extend the versioned metadata format. Table
+files will be added within database directories later. The current layout is:
 
 ```text
 data/
-├── catalog
 ├── students_db/
-│   ├── database_metadata
-│   ├── students.table
-│   └── courses.table
+│   └── database.meta
 └── library_db/
-    ├── database_metadata
-    └── books.table
+    └── database.meta
 ```
 
-Names must be validated before they are mapped to paths. The catalog should
-list databases, and each database's metadata should record its format version,
-name, and password verifier. Table files should record their schema and rows.
-Final names and encodings should be documented before storage implementation.
+Names must be validated before they are mapped to paths. `DatabaseManager`
+discovers only directories with valid metadata and reports corrupt metadata
+instead of silently treating it as a valid database. Table files should
+eventually record their schema and rows. Final record encodings should be
+documented before table-storage implementation.
 
 The database catalog and records must reload on a later application run.
 Authentication must be required before a protected database is selected for
