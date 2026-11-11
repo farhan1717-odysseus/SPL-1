@@ -38,8 +38,8 @@ int main() {
         "SELECT * FROM students;");
     if (!unsupported.diagnostic ||
         unsupported.diagnostic->message !=
-            "SQL statements are not implemented yet.") {
-        std::cerr << "Unimplemented SQL should produce a clear diagnostic.\n";
+            "Unknown command. Enter HELP for available commands.") {
+        std::cerr << "Unknown commands should produce a clear diagnostic.\n";
         return 1;
     }
 

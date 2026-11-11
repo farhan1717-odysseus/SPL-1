@@ -14,6 +14,8 @@ inline char ascii_lower(char character) noexcept {
     return character;
 }
 
+inline std::string normalized_name(std::string_view name);
+
 inline bool is_identifier(std::string_view name) {
     if (name.empty()) {
         return false;
@@ -32,10 +34,27 @@ inline bool is_identifier(std::string_view name) {
         return false;
     }
 
-    return std::all_of(name.begin() + 1, name.end(), [&](char character) {
-        const auto value = static_cast<unsigned char>(character);
-        return is_letter(value) || is_digit(value) || value == '_';
-    });
+    const bool valid_syntax =
+        std::all_of(name.begin() + 1, name.end(), [&](char character) {
+            const auto value = static_cast<unsigned char>(character);
+            return is_letter(value) || is_digit(value) || value == '_';
+        });
+    if (!valid_syntax) {
+        return false;
+    }
+
+    const std::string normalized = normalized_name(name);
+    if (normalized == "con" || normalized == "prn" || normalized == "aux" ||
+        normalized == "nul") {
+        return false;
+    }
+    if (normalized.size() == 4 &&
+        (normalized.compare(0, 3, "com") == 0 ||
+         normalized.compare(0, 3, "lpt") == 0) &&
+        normalized[3] >= '1' && normalized[3] <= '9') {
+        return false;
+    }
+    return true;
 }
 
 inline std::string normalized_name(std::string_view name) {

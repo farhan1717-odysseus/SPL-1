@@ -167,12 +167,22 @@ bool test_uninitialized_and_corrupt_metadata() {
     metadata.close();
 
     const auto listed = manager.show_databases();
-    return expect(!listed.success && listed.databases.empty(),
-                  "Corrupt metadata should be reported, not silently ignored.") &&
+    return expect(listed.success && listed.databases.size() == 1 &&
+                      listed.databases.front() == "_valid",
+                  "Corrupt metadata should not block listing valid databases.") &&
            expect(!manager.use_database("school").success,
                   "A database with corrupt metadata must not be selected.") &&
-           expect(!manager.drop_database("school").success,
-                  "A database with corrupt metadata must not be dropped.");
+           expect(manager.create_database("after_corruption").success,
+                  "Corrupt metadata should not block creating another database.") &&
+           expect(manager.drop_database("school").success &&
+                      !std::filesystem::exists(temporary.path() / "data" /
+                                               "school"),
+                  "An explicitly named database with corrupt metadata should "
+                  "be removable.") &&
+           expect(!manager.create_database("CON").success &&
+                      !manager.create_database("nul").success &&
+                      !manager.create_database("COM1").success,
+                  "Windows reserved device names should not be database names.");
 }
 
 }  // namespace

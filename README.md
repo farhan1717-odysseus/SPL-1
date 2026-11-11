@@ -1,11 +1,8 @@
 # Mini Database Engine
 
-A command-line Mini Database Engine project for SPL-1. The approved target is a
-C++17 SQL database with password-protected, persistent databases, multiple
-tables, and basic record operations. The current build provides an interactive command shell, a standalone
-database manager, and a table manager for persistent table schemas within the
-selected database. These managers are not connected to the CLI yet; password
-authentication, SQL execution, and record persistence are not implemented.
+A command-line Mini Database Engine project for SPL-1. It provides an
+interactive SQL shell with persistent databases, table schemas, and basic
+record operations. The project uses C++17 and only the standard library.
 
 ## Requirements
 
@@ -42,21 +39,48 @@ generators).
 
 ## Run
 
+Build the whole project with CMake; compiling `src/main.cpp` alone does not
+include the engine implementation. From the repository root, run:
+
 ```powershell
-.\build\minidb.exe
+.\build-msvc-x64\Debug\minidb.exe
 ```
 
-At this stage, the shell displays the application name/version, supports
-`HELP`, `EXIT`, and `QUIT`, ignores empty input, and reports invalid commands
-without ending the session. `DatabaseManager` stores each database in a
-separate directory under its configured data root and writes versioned
-`database.meta` metadata. `TableManager` creates, lists, describes, and drops
-tables in the selected database; each table has a separate versioned schema
-file supporting `INT`, `FLOAT`, `DOUBLE`, `VARCHAR`, `TEXT`, and `BOOLEAN`.
-These manager APIs are not yet exposed as SQL commands. Password
-authentication, SQL execution, and record persistence remain future work.
-The `data/` directory is reserved for generated runtime database files and is
-ignored by Git except for its directory marker.
+For Git Bash, the equivalent executable path is:
+
+```bash
+./build-msvc-x64/Debug/minidb.exe
+```
+
+The CLI stores runtime data in a `data\` directory under the current working
+directory. The directory is generated at runtime and ignored by Git.
+
+## Supported SQL
+
+Enter one statement per input line; a trailing semicolon is optional.
+
+```sql
+CREATE DATABASE school;
+USE school;
+CREATE TABLE student (id INT, name TEXT, score DOUBLE, active BOOLEAN);
+INSERT INTO student VALUES (1, 'Ada', 98.5, TRUE);
+SELECT * FROM student;
+SELECT name, score FROM student WHERE score >= 90;
+UPDATE student SET active = FALSE WHERE id = 1;
+DELETE FROM student WHERE id = 1;
+SHOW TABLES;
+DESCRIBE TABLE student;
+```
+
+The shell also supports `SHOW DATABASES`, `DROP TABLE`, `DROP DATABASE`,
+`HELP`, `EXIT`, and `QUIT`. Tables and typed records persist across program
+restarts. Supported column types are `INT`, `FLOAT`, `DOUBLE`, `VARCHAR`,
+`TEXT`, and `BOOLEAN`; basic `WHERE` comparisons can be combined with `AND`,
+`OR`, and parentheses. See [docs/SQL_GRAMMAR.md](docs/SQL_GRAMMAR.md) for
+syntax details.
+
+Password authentication is not implemented. Do not treat this engine as
+providing access control or as suitable for sensitive data.
 
 ## Project layout
 

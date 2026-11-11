@@ -9,7 +9,11 @@ CommandResult execute_command(const parser::Statement& statement) {
             "  HELP       Show this help message\n"
             "  EXIT, QUIT End the session\n"
             "\n"
-            "SQL commands will be added in later development milestones.\n",
+            "SQL commands:\n"
+            "  CREATE/DROP DATABASE, SHOW DATABASES, USE\n"
+            "  CREATE/DROP TABLE, SHOW TABLES, DESCRIBE TABLE\n"
+            "  INSERT INTO, SELECT, UPDATE, DELETE\n"
+            "Data is stored in the ./data directory.\n",
             false};
     }
 

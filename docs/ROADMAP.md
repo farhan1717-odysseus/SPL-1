@@ -1,11 +1,10 @@
 # Mini Database Engine: Development Roadmap
 
 This roadmap is aligned to the six official requirements in
-[PROPOSAL_ALIGNMENT.md](./PROPOSAL_ALIGNMENT.md). The repository currently has a CLI/build scaffold, a standalone persistent
-`DatabaseManager`, and a `TableManager` that persists table schemas. Password
-authentication, SQL integration, and record storage remain unimplemented.
-Keep the project buildable and test each milestone before adding the next
-behavior.
+[PROPOSAL_ALIGNMENT.md](./PROPOSAL_ALIGNMENT.md). The interactive CLI now
+executes database/table statements and basic persistent record CRUD. Password
+authentication remains unimplemented; keep the project buildable and test each
+milestone as behavior is added.
 
 ## Milestone 0: Resolve design approvals
 
@@ -56,9 +55,9 @@ blocked on approval of an honest security level.
   types, and schema metadata.
 - Completed: test multiple tables, database isolation, schema persistence
   across fresh manager instances, and corrupt metadata.
-- Remaining: define and implement a versioned record file format.
-- Remaining: validate record types/counts and record-file errors; test record
-  persistence across fresh program/storage instances.
+- Completed: store typed rows in a versioned record file and validate row
+  counts, value types, and record-file errors.
+- Completed: test record persistence across fresh sessions.
 
 **Exit criteria:** A selected database can hold multiple tables with validated,
 persistent schemas and record data. Schema storage and its lifecycle tests are
@@ -79,29 +78,29 @@ required.
 
 ## Milestone 5: SQL execution and record CRUD
 
-- Connect parsed statements to the database catalog and table storage.
-- Implement insert, select/view, update, and delete with type and column
+- Completed: connect parsed statements to database, table, and record storage.
+- Completed: execute insert, select, update, and delete with type and column
   validation.
-- Implement the agreed simple filter behavior and safe, explicit behavior when
-  `WHERE` is omitted.
-- Return structured rows/statuses for CLI formatting.
-- Test empty tables, zero/one/many matches, invalid columns/types, and writes
-  surviving restart.
+- Completed: apply WHERE filters and return formatted query rows/statuses.
+- Completed: test CRUD, filters, invalid values/columns, and persistence across
+  restart.
 
 **Exit criteria:** The required SQL operations work on multiple tables and
 multiple persistent databases.
 
 ## Milestone 6: CLI integration and acceptance
 
-- Connect concealed password entry, database commands, SQL execution, help,
-  and exit behavior in the CLI.
+- Completed: connect database commands, SQL execution, help, and exit behavior
+  in the CLI.
+- Remaining: concealed password entry and authentication require an approved
+  standard-library-only security approach.
 - Ensure user-level errors do not silently terminate a healthy session.
-- Update README with build, run, password, database, SQL, and data-location
+- Completed: update README with build, run, database, SQL, and data-location
   instructions.
 - Run a clean CMake build and the complete CTest suite in the intended
   environment.
-- Demonstrate create/protect/select database, create multiple tables, CRUD,
-  restart, authenticate, and verify persisted records.
+- Demonstrate create/select database, create tables, CRUD, restart, and verify
+  persisted records. Password protection and authentication remain blocked.
 
 **Exit criteria:** All six official requirements have reproducible automated or
 documented end-to-end verification.

@@ -46,15 +46,9 @@ ParseResult parse_command(std::string_view input) {
         return {Statement{ExitStatement{}}, std::nullopt};
     }
 
-    const std::string message =
-        command.rfind("SELECT ", 0) == 0 || command.rfind("CREATE ", 0) == 0 ||
-                command.rfind("INSERT ", 0) == 0 ||
-                command.rfind("UPDATE ", 0) == 0 ||
-                command.rfind("DELETE ", 0) == 0 ||
-                command.rfind("DROP ", 0) == 0
-            ? "SQL statements are not implemented yet."
-            : "Unknown command. Enter HELP for available commands.";
-    return {std::nullopt, utils::Diagnostic{message}};
+    return {std::nullopt, utils::Diagnostic{
+                              "Unknown command. Enter HELP for available "
+                              "commands."}};
 }
 
 }  // namespace minidb::parser

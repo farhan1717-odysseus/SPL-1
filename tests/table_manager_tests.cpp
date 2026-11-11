@@ -230,10 +230,22 @@ bool test_column_types_and_corrupt_schema() {
     }
 
     minidb::storage::TableManager tables(databases);
+    if (!expect(!tables.create_table("CON", {{"id", ColumnType::Int}}).success &&
+                    !tables.create_table("valid", {{"NUL", ColumnType::Int}})
+                         .success,
+                "Windows reserved names should not be table or column names.")) {
+        return false;
+    }
     if (!expect(tables.create_table(
                     "student", {{"id", ColumnType::Int}})
                     .success,
                 "The table should be created before corrupting its schema.")) {
+        return false;
+    }
+    if (!expect(tables.create_table(
+                    "healthy", {{"id", ColumnType::Int}})
+                    .success,
+                "A healthy table should be created beside the damaged one.")) {
         return false;
     }
 
@@ -244,12 +256,31 @@ bool test_column_types_and_corrupt_schema() {
     corrupt_schema << "invalid schema\n";
     corrupt_schema.close();
 
-    return expect(!tables.show_tables().success,
-                  "SHOW TABLES should report corrupt schemas.") &&
-           expect(!tables.describe_table("student").success,
+    const auto visible = tables.show_tables();
+    const auto corrupt_description = tables.describe_table("student");
+    const auto healthy_description = tables.describe_table("healthy");
+    const auto created_beside_corrupt =
+        tables.create_table("new_table", {{"id", ColumnType::Int}});
+    const auto drop_corrupt = tables.drop_table("student");
+    if (!drop_corrupt.success) {
+        std::cerr << "DROP TABLE corrupt-schema diagnostic: "
+                  << drop_corrupt.message << '\n';
+    }
+    return expect(visible.success && visible.tables.size() == 1 &&
+                      visible.tables.front() == "healthy",
+                  "A corrupt schema should not block listing healthy tables.") &&
+           expect(!corrupt_description.success,
                   "DESCRIBE should report corrupt schemas.") &&
-           expect(!tables.drop_table("student").success,
-                  "DROP should not delete a table with corrupt schema metadata.");
+           expect(healthy_description.success,
+                  "A corrupt schema should not block describing healthy tables.") &&
+           expect(created_beside_corrupt.success,
+                  "A corrupt schema should not block creating another table.") &&
+           expect(drop_corrupt.success &&
+                      !std::filesystem::exists(
+                          temporary.path() / "data" / "school" / "tables" /
+                          "student"),
+                  "An explicitly named table with corrupt schema metadata "
+                  "should be removable.");
 }
 
 }  // namespace

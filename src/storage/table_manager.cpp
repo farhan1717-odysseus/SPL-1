@@ -220,33 +220,29 @@ SchemasResult list_schemas(const DirectoryResult& directory) {
     while (entry != end) {
         const auto path = entry->path();
         const bool symbolic_link = entry->is_symlink(error);
-        if (error || symbolic_link) {
-            const std::string detail =
-                error ? error.message() : "symbolic links are not allowed";
-            return {false, {}, "Cannot inspect table entry: " + detail};
+        if (error) {
+            return {false, {}, "Cannot inspect table entry: " +
+                                   error.message()};
         }
 
-        const bool is_directory = entry->is_directory(error);
-        if (error || !is_directory) {
-            const std::string detail =
-                error ? error.message() : "unexpected non-directory entry";
-            return {false, {}, "Invalid table entry: " + detail};
-        }
-
-        TableSchema schema;
-        std::string message;
-        if (!is_identifier(path.filename().string()) ||
-            !read_schema(path, schema, message)) {
-            if (message.empty()) {
-                message = "Table directory has an invalid name.";
+        if (!symbolic_link) {
+            const bool is_directory = entry->is_directory(error);
+            if (error) {
+                return {false, {}, "Cannot inspect table entry: " +
+                                       error.message()};
             }
-            return {false, {}, "Invalid table '" +
-                                   path.filename().string() + "': " + message};
+            if (is_directory && is_identifier(path.filename().string())) {
+                TableSchema schema;
+                std::string message;
+                if (read_schema(path, schema, message)) {
+                    if (!names.insert(normalized_name(schema.name)).second) {
+                        return {false, {},
+                                "Duplicate table name found: " + schema.name};
+                    }
+                    result.schemas.push_back(std::move(schema));
+                }
+            }
         }
-        if (!names.insert(normalized_name(schema.name)).second) {
-            return {false, {}, "Duplicate table name found: " + schema.name};
-        }
-        result.schemas.push_back(std::move(schema));
 
         entry.increment(error);
         if (error) {
@@ -261,6 +257,49 @@ SchemasResult list_schemas(const DirectoryResult& directory) {
                          normalized_name(right.name);
               });
     return result;
+}
+
+std::optional<std::filesystem::path> find_table_directory(
+    const std::filesystem::path& root, std::string_view name,
+    std::string& message) {
+    std::error_code error;
+    std::filesystem::directory_iterator entry(root, error);
+    if (error && !is_missing_path_error(error)) {
+        message = "Cannot search tables: " + error.message();
+        return std::nullopt;
+    }
+    if (error) {
+        return std::nullopt;
+    }
+
+    const auto wanted = normalized_name(name);
+    const std::filesystem::directory_iterator end;
+    while (entry != end) {
+        const auto path = entry->path();
+        const bool symbolic_link = entry->is_symlink(error);
+        if (error) {
+            message = "Cannot inspect table entry: " + error.message();
+            return std::nullopt;
+        }
+        if (!symbolic_link &&
+            normalized_name(path.filename().string()) == wanted) {
+            const bool is_directory = entry->is_directory(error);
+            if (error) {
+                message = "Cannot inspect table directory: " +
+                          error.message();
+                return std::nullopt;
+            }
+            if (is_directory) {
+                return path;
+            }
+        }
+        entry.increment(error);
+        if (error) {
+            message = "Cannot continue searching tables: " + error.message();
+            return std::nullopt;
+        }
+    }
+    return std::nullopt;
 }
 
 TableOperationResult write_schema(const std::filesystem::path& table_path,
@@ -432,19 +471,32 @@ TableOperationResult TableManager::drop_table(std::string_view name) {
         [&](const TableSchema& schema) {
             return normalized_name(schema.name) == normalized;
         });
-    if (found == current.schemas.end()) {
-        return {false, "Table does not exist: " + std::string(name)};
+    std::filesystem::path table_path;
+    std::string table_name(name);
+    if (found != current.schemas.end()) {
+        table_name = found->name;
+        table_path = directory.path / found->name;
+    } else {
+        std::string search_error;
+        const auto found_directory =
+            find_table_directory(directory.path, name, search_error);
+        if (!search_error.empty()) {
+            return {false, std::move(search_error)};
+        }
+        if (!found_directory) {
+            return {false, "Table does not exist: " + std::string(name)};
+        }
+        table_path = *found_directory;
+        table_name = table_path.filename().string();
     }
-
-    const auto table_path = directory.path / found->name;
     std::error_code error;
     const auto removed = std::filesystem::remove_all(table_path, error);
     if (error || removed == 0) {
         const std::string detail =
             error ? error.message() : "table directory was not removed";
-        return {false, "Cannot drop table '" + found->name + "': " + detail};
+        return {false, "Cannot drop table '" + table_name + "': " + detail};
     }
-    return {true, "Table dropped: " + found->name};
+    return {true, "Table dropped: " + table_name};
 }
 
 TableListResult TableManager::show_tables() const {

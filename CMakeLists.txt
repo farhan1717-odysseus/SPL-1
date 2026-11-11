@@ -49,9 +49,13 @@ add_library(minidb_engine
     src/core/application.cpp
     src/core/cli.cpp
     src/execution/command_executor.cpp
+    src/execution/sql_session.cpp
+    src/parser/lexer.cpp
+    src/parser/sql_parser.cpp
     src/parser/statement.cpp
     src/storage/database_directory.cpp
     src/storage/database_manager.cpp
+    src/storage/record_store.cpp
     src/storage/table_manager.cpp
     src/utils/diagnostic.cpp
 )

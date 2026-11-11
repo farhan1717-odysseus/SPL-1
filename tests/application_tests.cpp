@@ -7,7 +7,9 @@
 int main() {
     char executable[] = "minidb";
     char* arguments[] = {executable};
-    std::istringstream input("\n  \nHELP\ninvalid command\nQUIT\nHELP\n");
+    std::istringstream input(
+        "\n  \nHELP\ninvalid command\nINSERT INTO t VALUES (3, 'abc\n"
+        "QUIT\nHELP\n");
     std::ostringstream output;
     std::ostringstream error;
 
@@ -34,9 +36,8 @@ int main() {
     }
 
     if (error.str() !=
-            "Error: Unknown command. Enter HELP for available commands.\n" ||
-        error.str().find("SQL statements are not implemented yet.") !=
-            std::string::npos) {
+        "Error: Unknown command. Enter HELP for available commands.\n"
+        "Error: Unterminated string literal. (line 1, column 26)\n") {
         std::cerr << "Invalid input was not handled as expected.\n";
         return 1;
     }
